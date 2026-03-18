@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { type } from "os";
 
 const productSchema = new mongoose.Schema(
   {
@@ -6,33 +7,63 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    description: String,
     category: {
       type: String,
-      enum: ["mobile", "shoes", "books"],
       required: true,
-    },
+    }, // mobile, shoes, books
     brand: {
       type: String,
-      required: true, // iphone, samsung, nike
+      required: true,
     },
     images: {
       type: [String],
       required: true,
-    },
+    }, // multiple images
     price: {
       type: Number,
       required: true,
     },
     oldPrice: Number,
     discount: Number,
-    storage: String,
+    finalPrice: Number,
+    stock: {
+      type: Number,
+      default: 0,
+    },
+    rating: {
+      type: Number,
+      default: 0,
+    },
+    reviewsCount: {
+      type: Number,
+      default: 0,
+    },
+    sizes: {
+      type: [String],
+    },
+    colors: {
+      type: [String],
+      required: true,
+    },
+    gender: {
+      type: String,
+      enum: ["Male", "Female", "Unisex"],
+      default: "Unisex",
+    },
     features: [String],
-    inStock: {
-      type: Boolean,
-      default: true,
+    createdAt: {
+      type: Date,
+      default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+productSchema.pre("save", async function () {
+  this.finalPrice = this.discount
+    ? this.price - (this.price * this.discount) / 100
+    : this.price;
+});
 
 export const Product = mongoose.model("Product", productSchema);

@@ -1,10 +1,31 @@
-// utils/jwt.js
 import jwt from "jsonwebtoken";
-
-export const signToken = (userId) => {
+export const signToken = (user) => {
   return jwt.sign(
-    { id: userId },
+    {
+      id: user._id,
+      role: user.role,
+    },
     process.env.JWT_SECRET,
-    { expiresIn: "1d" }
+    { expiresIn: "90d" }
   );
+};
+export const DeliveryBoySignToken = (deliveryBoy) => {
+  return jwt.sign(
+    {
+      id: deliveryBoy._id,
+      email: deliveryBoy.email,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "90d" }
+  );
+};
+
+export const generateToken = (id)=>{
+
+return jwt.sign(
+{ id },
+process.env.JWT_SECRET,
+{ expiresIn:"90d" }
+);
+
 };
