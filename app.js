@@ -10,8 +10,8 @@ import { fileURLToPath } from "url";
 // Load environment variables from .env
 dotenv.config();
 
-import { createSuperAdmin} from "./utils/cheksuperAdmin.js";
-import{ Routeradmin } from "./routes/adminrouter.js";
+import { createSuperAdmin } from "./utils/cheksuperAdmin.js";
+import { Routeradmin } from "./routes/adminrouter.js";
 import { SuperAdminrouter } from "./routes/superAdminrouter.js";
 import { router } from "./routes/authroute.js";
 import { Routerproduct } from "./routes/productrouter.js";
@@ -59,7 +59,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Request Logging Middleware
 // --------------------
 app.use((req, res, next) => {
-  console.log("📨 Incoming Request:");  
+  console.log("📨 Incoming Request:");
   console.log("Method:", req.method);
   console.log("URL:", req.url);
   console.log("Body:", JSON.stringify(req.body, null, 2));
@@ -81,7 +81,6 @@ app.use("/api/track", trackOrderRouter);
 app.use("/api/return", returnRouter);
 app.use("/api/delivery-boy-order", deliveryBoyOrderRouter);
 app.use("/api/wishlist", wishlistRouter);
-
 
 console.log("API routes mounted at /api");
 console.log("orders routes mounted at /api/order");
