@@ -2,7 +2,7 @@ import { Admin } from "../models/admin.js";
 import { SuperAdmin } from "../models/superAdmin.js";
 import { generateToken } from "../utils/jwt.js";
 import { sendVerificationOTP } from "../utils/Sendotp.js";
-
+import mongoose from "mongoose";
 import { Cart } from "../models/cart.js";
 import { Order } from "../models/order.js";
 import { User } from "../models/user.js";
@@ -458,23 +458,26 @@ export const blockUser = async (req, res) => {
 
 //get user details
 
-
 export const getUserDetails = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    // 1️ Fetch user basic info
-    const user = await User.findById(userId)
-      .select("_id name email ");
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "Admin not found " });
+    // Validate userId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
     }
 
-    //  Fetch all orders by this user
+    // Fetch user basic info
+    const user = await User.findById(userId).select("_id name email phone");
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Fetch all orders by this user
     const orders = await Order.find({ user: userId }).populate({
       path: "items.product",
-      select: "title price images ",
+      select: "title price images",
     });
 
     // Calculate order stats
@@ -486,14 +489,15 @@ export const getUserDetails = async (req, res) => {
       totalAmount += order.totalAmount || 0;
 
       order.items.forEach((item) => {
-        // Check if product already counted
-        const existing = productsOrdered.find(p => String(p.product._id) === String(item.product._id));
+        const existing = productsOrdered.find(
+          (p) => String(p.product._id) === String(item.product._id)
+        );
         if (existing) {
           existing.quantity += item.quantity;
         } else {
           productsOrdered.push({
             product: item.product,
-            quantity: item.quantity
+            quantity: item.quantity,
           });
         }
       });
@@ -501,22 +505,126 @@ export const getUserDetails = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        
-      },
+      user,
       orderStats: {
         totalOrders,
         totalAmount,
-        productsOrdered
-      }
+        productsOrdered,
+      },
     });
-
   } catch (error) {
     console.error("Get User Details Error:", error);
     res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+//get user products list (Admin)
+
+export const getUsersProductsList = async (req, res) => {
+  try {
+    const users = await User.find().select("_id name email").lean();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // start of today
+
+    const tenDaysLater = new Date();
+    tenDaysLater.setHours(23, 59, 59, 999);
+    tenDaysLater.setDate(today.getDate() + 9); // aaj se 10 din
+
+    const usersWithOrders = await Promise.all(
+      users.map(async (user) => {
+        const orders = await Order.find({
+          user: user._id,
+          createdAt: { $gte: today, $lte: tenDaysLater },
+        }).select("_id masterOrderId items.product").lean();
+
+        const productIds = [];
+        const orderIds = [];
+        const masterOrderIds = [];
+
+        orders.forEach((order) => {
+          orderIds.push(order._id.toString());
+          masterOrderIds.push(order.masterOrderId);
+
+          order.items.forEach((item) => {
+            const pid = item.product.toString();
+            if (!productIds.includes(pid)) {
+              productIds.push(pid);
+            }
+          });
+        });
+
+        return {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          productIds,       // unique product IDs
+          orderIds,         // order _id
+          masterOrderIds,   // master order ids (ORD-xxxx)
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      users: usersWithOrders,
+      totalUsers: usersWithOrders.length,
+    });
+  } catch (error) {
+    console.error("Get Users With Orders Error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+//order status update by admin
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    const allowedStatus = [
+      "Pending",
+      "Packing",
+      "Shipped",
+      "ArrivedAtCity",
+      "OutForDelivery",
+      "Delivered",
+      "Cancelled",
+    ];
+
+    if (!allowedStatus.includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const order = await Order.findById(req.params.id).populate("user");
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    order.status = status;
+    if (status === "Packing") order.tracking.packingAt = new Date();
+    if (status === "Shipped") order.tracking.shippedAt = new Date();
+    if (status === "ArrivedAtCity") order.tracking.arrivedAtCityAt = new Date();
+    if (status === "OutForDelivery")
+      order.tracking.outForDeliveryAt = new Date();
+    if (status === "Delivered") order.tracking.deliveredAt = new Date();
+    await order.save();
+
+    if (status === "Delivered") {
+      try {
+        const user = await User.findById(order.user._id);
+
+        // Generate PDF with product, amount, delivery charge, user details
+        const pdfPath = await DeliveryProductpdf(order, user);
+
+        // Send PDF to user's email
+        await sendInvoiceEmail(user.email, pdfPath);
+
+        console.log(`Delivery PDF sent successfully to ${user.email}`);
+      } catch (err) {
+        console.error("Error sending delivery PDF:", err.message);
+      }
+    }
+
+    res.json({ success: true, order });
+  } catch (error) {
+    res.status(500).json({ message: "Update failed", error: error.message });
   }
 };

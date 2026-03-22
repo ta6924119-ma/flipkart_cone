@@ -178,57 +178,57 @@ export const cancelOrder = async (req, res) => {
 };
 
 // UPDATE ORDER STATUS
-export const updateOrderStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
+// export const updateOrderStatus = async (req, res) => {
+//   try {
+//     const { status } = req.body;
 
-    const allowedStatus = [
-      "Pending",
-      "Packing",
-      "Shipped",
-      "ArrivedAtCity",
-      "OutForDelivery",
-      "Delivered",
-      "Cancelled",
-    ];
+//     const allowedStatus = [
+//       "Pending",
+//       "Packing",
+//       "Shipped",
+//       "ArrivedAtCity",
+//       "OutForDelivery",
+//       "Delivered",
+//       "Cancelled",
+//     ];
 
-    if (!allowedStatus.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
+//     if (!allowedStatus.includes(status)) {
+//       return res.status(400).json({ message: "Invalid status" });
+//     }
 
-    const order = await Order.findById(req.params.id).populate("user");
-    if (!order) return res.status(404).json({ message: "Order not found" });
+//     const order = await Order.findById(req.params.id).populate("user");
+//     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    order.status = status;
-    if (status === "Packing") order.tracking.packingAt = new Date();
-    if (status === "Shipped") order.tracking.shippedAt = new Date();
-    if (status === "ArrivedAtCity") order.tracking.arrivedAtCityAt = new Date();
-    if (status === "OutForDelivery")
-      order.tracking.outForDeliveryAt = new Date();
-    if (status === "Delivered") order.tracking.deliveredAt = new Date();
-    await order.save();
+//     order.status = status;
+//     if (status === "Packing") order.tracking.packingAt = new Date();
+//     if (status === "Shipped") order.tracking.shippedAt = new Date();
+//     if (status === "ArrivedAtCity") order.tracking.arrivedAtCityAt = new Date();
+//     if (status === "OutForDelivery")
+//       order.tracking.outForDeliveryAt = new Date();
+//     if (status === "Delivered") order.tracking.deliveredAt = new Date();
+//     await order.save();
 
-    if (status === "Delivered") {
-      try {
-        const user = await User.findById(order.user._id);
+//     if (status === "Delivered") {
+//       try {
+//         const user = await User.findById(order.user._id);
 
-        // Generate PDF with product, amount, delivery charge, user details
-        const pdfPath = await DeliveryProductpdf(order, user);
+//         // Generate PDF with product, amount, delivery charge, user details
+//         const pdfPath = await DeliveryProductpdf(order, user);
 
-        // Send PDF to user's email
-        await sendInvoiceEmail(user.email, pdfPath);
+//         // Send PDF to user's email
+//         await sendInvoiceEmail(user.email, pdfPath);
 
-        console.log(`Delivery PDF sent successfully to ${user.email}`);
-      } catch (err) {
-        console.error("Error sending delivery PDF:", err.message);
-      }
-    }
+//         console.log(`Delivery PDF sent successfully to ${user.email}`);
+//       } catch (err) {
+//         console.error("Error sending delivery PDF:", err.message);
+//       }
+//     }
 
-    res.json({ success: true, order });
-  } catch (error) {
-    res.status(500).json({ message: "Update failed", error: error.message });
-  }
-};
+//     res.json({ success: true, order });
+//   } catch (error) {
+//     res.status(500).json({ message: "Update failed", error: error.message });
+//   }
+// };
 
 //  GET USER,S ORDER
 export const getUserOrders = async (req, res) => {
