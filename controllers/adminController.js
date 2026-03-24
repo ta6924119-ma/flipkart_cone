@@ -282,14 +282,6 @@ export const getDashboardStats = async (req, res) => {
     const totalProducts = await Product.countDocuments();
     const totalOrders = await Order.countDocuments();
     const totalDeliveryBoys = await DeliveryBoy.countDocuments();
-    const totalWishlists = await Wishlist.countDocuments();
-    const totalCarts = await Cart.countDocuments();
-
-    const revenue = await Order.aggregate([
-      { $match: { paymentStatus: "paid" } },
-      { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } }
-    ]);
-
     res.json({
       success: true,
       stats: {
@@ -297,14 +289,9 @@ export const getDashboardStats = async (req, res) => {
         totalProducts,
         totalOrders,
         totalDeliveryBoys,
-        totalCarts,
-        totalWishlists,
-        totalRevenue: revenue[0]?.totalRevenue || 0
+        
       }
     });
-
-
-
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal server error" });
@@ -318,6 +305,11 @@ export const getRecentOrders = async (req, res) => {
                 path: "user",
                 select: "name email"
             })
+              .populate({
+                path: "items.product",
+                select: "title images"
+              })
+
             .sort({ createdAt: -1 })
             .limit(10);
 
