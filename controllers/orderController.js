@@ -182,34 +182,37 @@ export const getUserOrders = async (req, res) => {
     .sort({ createdAt: -1 });
 
   // map orders to include tracking times in user-friendly format
-  const formattedOrders = orders.map((order) => {
-    return {
-      _id: order._id,
-      masterOrderId: order.masterOrderId,
-      status: order.status,
-      totalAmount: order.totalAmount,
-      paymentMethod: order.paymentMethod,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      deliveryCharge: order.deliveryCharge,
-      items: order.items.map((i) => ({
-        title: i.title,
-        quantity: i.quantity,
-        price: i.price,
-        totalItemPrice: i.totalItemPrice,
-        images: i.images,
-      })),
-      tracking: {
-        packingAt: order.tracking?.packingAt || null,
-        shippedAt: order.tracking?.shippedAt || null,
-        arrivedAtCityAt: order.tracking?.arrivedAtCityAt || null,
-        outForDeliveryAt: order.tracking?.outForDeliveryAt || null,
-        deliveredAt: order.tracking?.deliveredAt || null,
-        cancelledAt: order.tracking?.cancelledAt || null,
-      },
-    };
-  });
+ const formattedOrders = orders.map((order) => {
+  return {
+    _id: order._id,
+    masterOrderId: order.masterOrderId,
+    status: order.status,
+    totalAmount: order.totalAmount,
+    paymentMethod: order.paymentMethod,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    deliveryCharge: order.deliveryCharge,
 
+    items: order.items.map((i) => ({
+      product: {
+        title: i.title,
+       images: i.product?.images || i.images
+      },
+      quantity: i.quantity,
+      price: i.price,
+      totalItemPrice: i.totalItemPrice,
+    })),
+
+    tracking: {
+      packingAt: order.tracking?.packingAt || null,
+      shippedAt: order.tracking?.shippedAt || null,
+      arrivedAtCityAt: order.tracking?.arrivedAtCityAt || null,
+      outForDeliveryAt: order.tracking?.outForDeliveryAt || null,
+      deliveredAt: order.tracking?.deliveredAt || null,
+      cancelledAt: order.tracking?.cancelledAt || null,
+    },
+  };
+});
   res.json({ success: true, orders: formattedOrders });
 };
 //GET ADMIN ALL ORDERS
