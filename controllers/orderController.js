@@ -107,14 +107,12 @@ export const placeOrder = async (req, res) => {
     });
 
     // Generate PDF & email for COD
-    if (paymentMethod === "COD") {
-      try {
-        const invoicePath = await generateInvoice(order, user);
-        await sendInvoiceEmail(user.email, invoicePath);
-      } catch (err) {
-        console.log("COD invoice email error:", err.message);
-      }
-    }
+    try {
+  const invoicePath = await generateInvoice(order, user);
+  await sendInvoiceEmail(user.email, invoicePath);
+} catch (err) {
+  console.log("Invoice/Email Error:", err.message);
+}
 
     res.status(201).json({
       success: true,

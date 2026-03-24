@@ -79,7 +79,7 @@ export const pickupProducts = async (req, res) => {
     // Find orders
     const orders = await Order.find({
       masterOrderId,
-      status: { $in: ["Shipped", "ArrivedAtCity", "Packing"] }
+      status: { $in: ["Shipped", "ArrivedAtCity", "Packing", "OutForDelivery"] }
     });
 
     if (!orders || orders.length === 0) {
@@ -137,7 +137,7 @@ ${order.items.map(i => `- ${i.title} (Qty: ${i.quantity})`).join("\n")}
   }
 };
 
-// STEP 3: Confirm Delivery (Update OTP Check)
+// Confirm Delivery (Update OTP Check)
 export const confirmDelivery = async (req, res) => {
   try {
     const {  masterOrderId, userOtp } = req.body;
@@ -146,7 +146,7 @@ export const confirmDelivery = async (req, res) => {
     const order = await Order.findOne({ masterOrderId }).populate("user");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    // 2. OTP Check 
+    //  OTP Check 
     if (order.deliveryOTP.code !== userOtp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
@@ -155,13 +155,13 @@ export const confirmDelivery = async (req, res) => {
       return res.status(400).json({ message: "OTP expired" });
     }
 
-    // 3. Mark Delivered
+    //  Mark Delivered
     order.status = "Delivered";
     order.tracking.deliveredAt = new Date();
     order.deliveryOTP.verified = true;
     await order.save();
 
-    // 4. Generate & Send PDF
+    //  Generate & Send PDF
     const user = await User.findById(order.user);
     if (user) {
       const pdfPath = await DeliveryProductpdf(order, user);
