@@ -2,6 +2,7 @@ import { Admin } from "../models/admin.js";
 import { SuperAdmin } from "../models/superAdmin.js";
 import { generateToken } from "../utils/jwt.js";
 import { sendVerificationOTP } from "../utils/Sendotp.js";
+import{ DeliveryProductpdf } from "../utils/generatepdf.js";
 import mongoose from "mongoose";
 import { Cart } from "../models/cart.js";
 import { Order } from "../models/order.js";
