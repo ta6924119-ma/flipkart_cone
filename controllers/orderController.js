@@ -4,40 +4,52 @@ import { Product } from "../models/product.js";
 import {
   generateInvoice,
   generateCancel,
-  DeliveryProductpdf,
 } from "../utils/generatepdf.js";
 import { sendInvoiceEmail } from "../utils/sendemail.js";
+import { calculateCartTotal } from "../utils/totalCart.js";
 import { User } from "../models/user.js";
 import { v4 as uuidv4 } from "uuid";
 
 // ===== SINGLE API: DIRECT OR CART ORDER =====
 export const placeOrder = async (req, res) => {
   try {
-    const { productId, quantity = 1, address, paymentMethod } = req.body;
+    const {
+      productId,
+      quantity = 1,
+      paymentMethod,
+      selectedItems,
+    } = req.body;
 
-    // Fetch user
+    // =========================
+    // USER
+    // =========================
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
 
-    // Use provided shippingAddress or user's default
     const addressToUse = req.body.shippingAddress || user.address[0];
     if (!addressToUse) {
       return res
         .status(400)
         .json({ message: "Please fill your shipping address first" });
     }
+
     let orderItems = [];
     let totalPrice = 0;
 
+    // =========================
+    // 1. DIRECT ORDER
+    // =========================
     if (productId) {
-      // Direct order
       const product = await Product.findById(productId);
+
       if (!product)
         return res.status(404).json({ message: "Product not found" });
+
       if (product.stock < quantity)
-        return res
-          .status(400)
-          .json({ message: `Only ${product.stock} items available` });
+        return res.status(400).json({
+          message: `Only ${product.stock} items available`,
+        });
 
       orderItems.push({
         product: product._id,
@@ -47,53 +59,132 @@ export const placeOrder = async (req, res) => {
         title: product.title,
         images: product.images,
       });
-      totalPrice = product.finalPrice * quantity;
 
-      // Reduce stock
+      totalPrice += product.finalPrice * quantity;
+
+      //  Reduce stock
       product.stock -= quantity;
       await product.save();
-    } else {
-      // Cart order
+    }
+
+    // =========================
+    // 2. CART ORDER
+    // =========================
+    else {
       const cart = await Cart.findOne({ user: req.user._id }).populate(
-        "items.product",
+        "items.product"
       );
-      if (!cart || cart.items.length === 0)
+
+      if (!cart || cart.items.length === 0) {
         return res.status(400).json({ message: "Cart is empty" });
-
-      for (const item of cart.items) {
-        const product = await Product.findById(item.product._id);
-        if (!product || product.stock < item.quantity)
-          return res
-            .status(400)
-            .json({ message: `Insufficient stock for ${product?.title}` });
-
-        orderItems.push({
-          product: product._id,
-          quantity: item.quantity,
-          price: item.price,
-          totalItemPrice: item.totalItemPrice,
-          title: product.title,
-          images: product.images,
-        });
-        totalPrice += item.totalItemPrice;
-
-        // Reduce stock
-        product.stock -= item.quantity;
-        await product.save();
       }
 
-      // Clear cart
-      cart.items = [];
-      cart.totalPrice = 0;
+      // =========================
+      //  A. SELECTED ITEMS ORDER
+      // =========================
+      if (selectedItems && selectedItems.length > 0) {
+        for (const selected of selectedItems) {
+          const cartItem = cart.items.find(
+            (item) =>
+              item.product._id.toString() === selected.productId
+          );
+
+          if (!cartItem)
+            return res
+              .status(400)
+              .json({ message: "Item not in cart" });
+
+          const product = await Product.findById(
+            selected.productId
+          );
+
+          if (!product || product.stock < selected.quantity) {
+            return res.status(400).json({
+              message: `Insufficient stock for ${product?.title}`,
+            });
+          }
+
+          orderItems.push({
+            product: product._id,
+            quantity: selected.quantity,
+            price: product.finalPrice,
+            totalItemPrice:
+              product.finalPrice * selected.quantity,
+            title: product.title,
+            images: product.images,
+          });
+
+          totalPrice +=
+            product.finalPrice * selected.quantity;
+
+          //  Reduce stock
+          product.stock -= selected.quantity;
+          await product.save();
+
+          //  Update cart
+          cartItem.quantity -= selected.quantity;
+
+          if (cartItem.quantity <= 0) {
+            cart.items = cart.items.filter(
+              (i) =>
+                i.product._id.toString() !==
+                selected.productId
+            );
+          }
+        }
+      }
+
+      // =========================
+      //  B. FULL CART ORDER
+      // =========================
+      else {
+        for (const item of cart.items) {
+          const product = await Product.findById(
+            item.product._id
+          );
+
+          if (!product || product.stock < item.quantity) {
+            return res.status(400).json({
+              message: `Insufficient stock for ${product?.title}`,
+            });
+          }
+
+          orderItems.push({
+            product: product._id,
+            quantity: item.quantity,
+            price: item.price,
+            totalItemPrice: item.totalItemPrice,
+            title: product.title,
+            images: product.images,
+          });
+
+          totalPrice += item.totalItemPrice;
+
+          //  Reduce stock
+          product.stock -= item.quantity;
+          await product.save();
+        }
+
+        //  Clear cart
+        cart.items = [];
+      }
+
+      // Recalculate cart
+      calculateCartTotal(cart);
       await cart.save();
     }
 
-    // Delivery charge
+    // =========================
+    // FINAL CALCULATION
+    // =========================
     const deliveryCharge = totalPrice < 3000 ? 50 : 0;
     const finalAmount = totalPrice + deliveryCharge;
+
     const masterOrderId = "ORD-" + uuidv4().slice(0, 8);
 
-    // Create order
+    // =========================
+    // CREATE ORDER
+    // =========================
     const order = await Order.create({
       user: req.user._id,
       items: orderItems,
@@ -106,25 +197,29 @@ export const placeOrder = async (req, res) => {
       status: "Pending",
     });
 
-    // Generate PDF & email for COD
+    // =========================
+    // INVOICE + EMAIL
+    // =========================
     try {
-  const invoicePath = await generateInvoice(order, user);
-  await sendInvoiceEmail(user.email, invoicePath);
-} catch (err) {
-  console.log("Invoice/Email Error:", err.message);
-}
+      const invoicePath = await generateInvoice(order, user);
+      await sendInvoiceEmail(user.email, invoicePath);
+    } catch (err) {
+      console.log("Invoice/Email Error:", err.message);
+    }
 
+    // =========================
+    // RESPONSE
+    // =========================
     res.status(201).json({
       success: true,
-      message: `Order placed successfully${paymentMethod === "COD" ? " (Invoice sent)" : ""}`,
+      message: "Order placed successfully (Invoice sent)",
       order,
     });
   } catch (error) {
-    // Console.error("Place Order Error:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to place order", error: error.message });
-    // res.status(500).json({ message: "Failed to place order", error: error.message });
+    res.status(500).json({
+      message: "Failed to place order",
+      error: error.message,
+    });
   }
 };
 //CENCEL ORDER

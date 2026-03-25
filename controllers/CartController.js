@@ -21,7 +21,15 @@ export const addToCart = async (req, res) => {
     const { productId, quantity = 1 } = req.body;
 
     const product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!product)
+      return res.status(404).json({ message: "Product not found" });
+
+    //  STOCK CHECK
+    if (product.stock < quantity) {
+      return res.status(400).json({
+        message: `Only ${product.stock} items available`,
+      });
+    }
 
     let cart = await Cart.findOne({ user: req.user._id });
 
@@ -33,7 +41,7 @@ export const addToCart = async (req, res) => {
         items: [
           {
             product: productId,
-            title:product.title,
+            title: product.title,
             quantity,
             price,
             totalItemPrice: quantity * price,
@@ -41,34 +49,40 @@ export const addToCart = async (req, res) => {
         ],
       });
     } else {
-      const item = cart.items.find((i) => i.product.toString() === productId);
+      const item = cart.items.find(
+        (i) => i.product.toString() === productId
+      );
 
       if (item) {
         item.quantity += quantity;
+
+        // FIX
+        item.totalItemPrice = item.quantity * item.price;
       } else {
         cart.items.push({
           product: productId,
-           title:product.title,
+          title: product.title,
           quantity,
           price,
           totalItemPrice: quantity * price,
         });
       }
     }
-
-    //  TOTAL CALCULATOR
+   //  TOTAL CALCULATOR
     calculateCartTotal(cart);
 
     await cart.save();
+
     res.json(cart);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Add to cart failed", error: error.message });
+    res.status(500).json({
+      message: "Add to cart failed",
+      error: error.message,
+    });
   }
 };
 
-// UPDATE CART//
+// UPDATE CART
 export const updateCartItem = async (req, res) => {
   try {
     const { productId, quantity } = req.body;

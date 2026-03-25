@@ -10,6 +10,7 @@ import {
   blockUser,
   getUserDetails,
   getAllProductsAdmin,
+  getAdminProductById ,
   getUsersProductsList,
   updateOrderStatus,
 } from "../controllers/adminController.js";
@@ -27,6 +28,7 @@ route.get("/dashboard",  adminProtect, getDashboardStats);
 route.get("/recent-orders",  adminProtect, getRecentOrders);
 route.get("/top-products", adminProtect, getTopProducts);
 route.get("/products", adminProtect, getAllProductsAdmin);
+route.get("/products/:id", adminProtect, getAdminProductById);
 route.get("/low-stock",  adminProtect, getLowStockProducts);
 route.get("/revenue",  adminProtect, getMonthlyRevenue);
 route.get("/users", adminProtect, getAllUsers);
