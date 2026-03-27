@@ -76,6 +76,10 @@ const orderSchema = new mongoose.Schema(
       ],
       default: "Pending",
     },
+    statusColor: {
+          type: String,
+          default: "gray"
+    },
      tracking: {
       packingAt: Date,
       shippedAt: Date,

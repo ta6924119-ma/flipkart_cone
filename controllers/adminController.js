@@ -3,6 +3,7 @@ import { SuperAdmin } from "../models/superAdmin.js";
 import { generateToken } from "../utils/jwt.js";
 import { sendVerificationOTP } from "../utils/Sendotp.js";
 import { DeliveryProductpdf } from "../utils/generatepdf.js";
+import{getStatusColor} from "../utils/ChnageOrderStatusColor.js"
 import mongoose from "mongoose";
 
 import { Order } from "../models/order.js";
@@ -615,6 +616,7 @@ export const updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     order.status = status;
+    order.statusColor = getStatusColor(status);
     if (status === "Packing") order.tracking.packingAt = new Date();
     if (status === "Shipped") order.tracking.shippedAt = new Date();
     if (status === "ArrivedAtCity") order.tracking.arrivedAtCityAt = new Date();
